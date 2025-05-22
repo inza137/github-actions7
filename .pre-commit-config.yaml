@@ -1,0 +1,22 @@
+# .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: 'v0.11.10'
+    hooks:
+    -   id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+    -   id: ruff-format
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: 'v1.7.1' # Or your desired mypy version. Your log shows mypy 1.15.0 was installed.
+    # rev: 'v1.10.0' # Example of a more recent version
+    hooks:
+    -   id: mypy
+        args: [--config-file=pyproject.toml]
+        additional_dependencies: ['pandas-stubs', 'types-PyYAML', 'pytest', 'numpy'] # Added numpy as per mypy plugin

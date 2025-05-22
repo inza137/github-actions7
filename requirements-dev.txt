@@ -1,0 +1,11 @@
+# requirements-dev.txt
+# Dependencies for development, testing, linting, etc.
+pytest==8.3.5
+pytest-cov
+mypy==1.14.0
+ruff==0.11.10
+bandit== 1.7.9
+safety==3.5.1
+pre-commit==3.5.0
+types-PyYAML
+pandas-stubs

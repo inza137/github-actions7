@@ -1,0 +1,111 @@
+# .github/workflows/ci-cd.yml
+name: Python CI/CD - Data Script (src/main.py) with Logging
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    types:
+      - opened
+
+jobs:
+  lint-test-analyze:
+    name: Lint, Test & Analyze
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install dependencies # MODIFIED STEP
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt      # Install runtime dependencies
+        pip install -r requirements-dev.txt  # Install development dependencies
+
+    - name: Lint and Format Check with Ruff
+      run: |
+        ruff check .
+        ruff format --check .
+
+    - name: Static type checking with Mypy
+      run: mypy src tests --config-file pyproject.toml
+
+    - name: Security scan (code) with Bandit
+      run: bandit -r src -c pyproject.toml
+
+    - name: Security scan (dependencies) with Safety
+      run: |
+        # Safety checks your installed packages (from requirements.txt primarily)
+        # Create a combined list for a comprehensive check during CI for dev environment
+        pip freeze > current_requirements_frozen.txt
+        safety check -r current_requirements_frozen.txt
+        # If you only want to check runtime deps for safety in CI (more typical for production):
+        # safety check -r requirements.txt
+
+    - name: Run tests with Pytest
+      run: pytest # Pytest will use pyproject.toml for its configuration
+
+  # deploy-and-run-on-ec2:
+  #   name: Deploy and Run Script on EC2
+  #   needs: lint-test-analyze
+  #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
+
+  #   - name: Deploy to EC2 and Run Script
+  #     uses: appleboy/ssh-action@v1.0.0 # Or a more recent version if available
+  #     with:
+  #       host: ${{ secrets.EC2_HOST }}
+  #       username: ${{ secrets.EC2_USERNAME }}
+  #       key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+  #       port: ${{ secrets.EC2_PORT }}
+  #       script: |
+  #         set -e
+  #         export APP_DIR="/opt/my_data_project_src_main"
+
+  #         echo "Creating application directory $APP_DIR on EC2..."
+  #         sudo mkdir -p $APP_DIR
+  #         sudo chown ${{ secrets.EC2_USERNAME }}:${{ secrets.EC2_USERNAME }} $APP_DIR
+  #         cd $APP_DIR
+
+  #         echo "Cloning/updating repository on EC2..."
+  #         if [ ! -d ".git" ]; then
+  #           git clone https://github.com/${{ github.repository }}.git .
+  #         else
+  #           git remote set-url origin https://github.com/${{ github.repository }}.git
+  #           git fetch origin main --prune
+  #           git reset --hard origin/main
+  #           git clean -fdx
+  #         fi
+
+  #         echo "Setting up Python virtual environment on EC2..."
+  #         if [ ! -d "venv" ]; then
+  #           python3 -m venv venv
+  #         fi
+  #         source venv/bin/activate
+
+  #         echo "Installing runtime dependencies on EC2..."
+  #         pip install --upgrade pip
+  #         # Install ONLY runtime dependencies from requirements.txt into the EC2's venv
+  #         pip install -r requirements.txt
+
+  #         echo "Running the data processing script on EC2..."
+  #         python src/main.py
+
+  #         echo "Script execution finished on EC2."
+  #         echo "Data directory on EC2: $APP_DIR/data/"
+  #         echo "Check $APP_DIR/data/sample_input.csv, $APP_DIR/data/processed_output.csv, and $APP_DIR/data/data_processing.log"
+  #         echo "Deployment and execution successful!"
