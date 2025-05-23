@@ -137,14 +137,14 @@ jobs:
           csv_path = '$DOWNLOADED_CSV_PATH' # Using the env var passed from shell
           print(f'Attempting to read: {csv_path}')
           try:
-          df = pd.read_csv(csv_path)
-          print('--- CSV Head ---')
-          print(df.head())
-          print('--- CSV Info ---')
-          df.info()
-          print(f'Number of rows: {len(df)}')
-          print(f'Number of columns: {len(df.columns)}')
-          print('✅ CSV processed successfully.')
+              df = pd.read_csv(csv_path)
+              print('--- CSV Head ---')
+              print(df.head())
+              print('--- CSV Info ---')
+              df.info()
+              print(f'Number of rows: {len(df)}')
+              print(f'Number of columns: {len(df.columns)}')
+              print('✅ CSV processed successfully.')
           except FileNotFoundError:
               print(f'❌ ERROR: Python script could not find {csv_path}')
               exit(1)
