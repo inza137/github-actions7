@@ -6,6 +6,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
+#Sample comment
 # --- Determine Project Root ---
 # This is defined once at the module level.
 # When testing, your test fixture (temp_data_dir) will monkeypatch THIS variable.
