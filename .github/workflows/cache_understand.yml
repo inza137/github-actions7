@@ -1,0 +1,69 @@
+name: Cache Dependencies Demo
+
+on:
+  workflow_dispatch: # Allows manual triggering for testing
+
+jobs:
+  build_with_explicit_cache:
+    name: "Build using explicit actions/cache"
+    runs-on: ubuntu-latest # Or any other OS you use
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4 # Needed to access requirements.txt
+
+      - name: Set up Python
+        id: setup_python # Give an ID to access its outputs (like the exact Python version)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8' # Specify your project's Python version
+
+      - name: Get pip cache directory path
+        id: pip_cache_path # ID to reference the output of this step
+        run: |
+          # Ask pip where its cache directory is and output it
+          echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"
+        # For context, common pip cache paths:
+        # Linux: ~/.cache/pip
+        # macOS: ~/Library/Caches/pip
+        # Windows: %LocalAppData%\pip\Cache
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        id: cache_pip_dependencies # ID to check for cache-hit output later
+        with:
+          # 'path' is the directory to cache. We use the output from the previous step.
+          path: ${{ steps.pip_cache_path.outputs.dir }}
+          
+          # 'key' is a unique identifier for the cache.
+          # It includes the runner's OS, the resolved Python version, and a hash of your requirements.txt.
+          # If requirements.txt changes, hashFiles changes, leading to a new key (cache invalidation).
+          key: ${{ runner.os }}-pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('**/requirements.txt') }}
+          
+          # 'restore-keys' are fallback keys if the exact 'key' isn't found.
+          # Useful for restoring a cache from a slightly older state.
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ steps.setup_python.outputs.python-version }}-
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          echo "Installing dependencies from requirements.txt..."
+          # If the cache was hit, pip will find packages in its restored local cache, 
+          # making this step much faster as it won't need to download them again.
+          pip install -r requirements.txt
+          echo "Dependencies installed."
+
+      - name: Output cache hit status
+        # This step runs regardless of previous failures due to `if: always()`
+        # to ensure you always see the cache status.
+        if: always() 
+        run: |
+          # The 'cache-hit' output is true if the primary key matched an existing cache.
+          if [[ "${{ steps.cache_pip_dependencies.outputs.cache-hit }}" == "true" ]]; then
+            echo "✅ Cache hit! Pip dependencies were restored from cache using key: ${{ steps.cache_pip_dependencies.outputs.cache-primary-key }}"
+          else
+            echo "ℹ️ Cache miss. Pip dependencies were not found in the cache for the primary key."
+            echo "If the job succeeds, a new cache will be saved with key: ${{ runner.os }}-pip-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('**/requirements.txt') }}"
+          fi
