@@ -1,14 +1,14 @@
 name: Python CI - Artifact Upload and Download Demo 📤📥
 
 on:
-  push:
-    branches:
-      - main # Or your default branch
-      # - develop
-  pull_request:
-    branches:
-      - main # Or your default branch
-      # - develop
+  # push:
+  #   branches:
+  #     - main # Or your default branch
+  #     # - develop
+  # pull_request:
+  #   branches:
+  #     - main # Or your default branch
+  #     # - develop
   workflow_dispatch: # Allows manual triggering
 
 jobs:
