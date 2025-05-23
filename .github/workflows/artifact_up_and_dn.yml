@@ -1,0 +1,154 @@
+name: Python CI - Artifact Upload and Download Demo 📤📥
+
+on:
+  push:
+    branches:
+      - main # Or your default branch
+      # - develop
+  pull_request:
+    branches:
+      - main # Or your default branch
+      # - develop
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build_and_upload_job:
+    name: "Build, Test & Upload Artifact 🏗️"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository 🛎️
+        uses: actions/checkout@v4
+
+      - name: Set up Python 🐍
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          cache: 'pip'
+
+      - name: Install dependencies ⚙️
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          # pip install -r requirements-dev.txt # If tests or script needed dev dependencies
+
+      - name: Display GITHUB_WORKSPACE and initial structure (Job 1) 🗺️
+        run: |
+          echo "🏃 Job 1: Current GITHUB_WORKSPACE is: $GITHUB_WORKSPACE"
+          echo "📂 Initial directory structure in GITHUB_WORKSPACE (Job 1):"
+          ls -Rla # List all files, recursively, with details
+
+      # You could run tests here if you have them
+      # - name: Run tests 🧪
+      #   run: pytest
+
+      - name: Run Python script to generate CSV 🏃‍♂️💨
+        run: python src/main.py
+
+      - name: Display structure after CSV generation (Job 1) 📄
+        shell: bash # Ensure bash features like `if` are available
+        run: |
+          echo "📂 Directory structure after CSV generation in GITHUB_WORKSPACE (Job 1):"
+          ls -Rla
+          echo "---"
+          CSV_FILE_PATH="$GITHUB_WORKSPACE/data/processed_output.csv"
+          echo "📄 Expected CSV path for upload: $CSV_FILE_PATH"
+          echo "🔍 Verifying CSV existence:"
+          if [ -f "$CSV_FILE_PATH" ]; then
+            echo "✅ '$CSV_FILE_PATH' found."
+            echo "📝 Head of generated CSV ($CSV_FILE_PATH):"
+            head -n 5 "$CSV_FILE_PATH"
+          else
+            echo "❌ ERROR: '$CSV_FILE_PATH' NOT found!"
+            echo "Contents of $GITHUB_WORKSPACE/data/:"
+            ls -la "$GITHUB_WORKSPACE/data/"
+            exit 1 # Fail the job if CSV is not found
+          fi
+
+      - name: Upload Processed CSV as Artifact 📤
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-csv-artifact # This is the key name for download
+          path: data/processed_output.csv # Path on the runner where the file exists.
+                                          # The artifact itself will contain 'processed_output.csv' at its root.
+          if-no-files-found: error # Fail if the file isn't found
+          retention-days: 1 # Short retention for demo purposes (default is 90)
+
+  download_and_process_job:
+    name: "Download & Process Artifact 📥⚙️"
+    runs-on: ubuntu-latest
+    needs: build_and_upload_job # Ensures this job runs only after 'build_and_upload_job' completes successfully
+
+    steps:
+      # Checkout is often not needed if you only operate on downloaded artifacts and don't need repo scripts.
+      # However, if your processing script was in the repo, you'd need it.
+      # - name: Checkout repository 🛎️
+      #   uses: actions/checkout@v4
+
+      - name: Set up Python 🐍 (if needed for processing)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+          cache: 'pip'
+
+      - name: Install pandas (for processing the CSV) 🐼
+        run: pip install pandas # Or pip install -r requirements.txt if pandas is in there
+
+      - name: Display GITHUB_WORKSPACE and initial structure (Job 2) 🗺️
+        run: |
+          echo "🏃 Job 2: Current GITHUB_WORKSPACE is: $GITHUB_WORKSPACE"
+          echo "📂 Initial directory structure in GITHUB_WORKSPACE (Job 2) before download:"
+          ls -Rla
+
+      - name: Download the CSV artifact 📥
+        uses: actions/download-artifact@v4
+        with:
+          name: my-csv-artifact # Must match the 'name' from upload-artifact
+          path: downloaded_data_dir # Files will be placed in this directory within GITHUB_WORKSPACE.
+                                   # So, the CSV will be at $GITHUB_WORKSPACE/downloaded_data_dir/processed_output.csv
+
+      - name: Display structure after download and verify file 📄
+        shell: bash # Ensure bash features like `if` are available
+        run: |
+          echo "📂 Directory structure in GITHUB_WORKSPACE (Job 2) after download:"
+          ls -Rla
+          echo "---"
+          DOWNLOAD_DIR_PATH="$GITHUB_WORKSPACE/downloaded_data_dir"
+          DOWNLOADED_CSV_PATH="$DOWNLOAD_DIR_PATH/processed_output.csv" # Path where the CSV should be
+          echo "🔍 Looking for downloaded CSV in: $DOWNLOAD_DIR_PATH"
+          echo "📄 Contents of '$DOWNLOAD_DIR_PATH' directory:"
+          ls -Rla "$DOWNLOAD_DIR_PATH"
+          echo "---"
+          echo "🔍 Verifying downloaded CSV existence at: $DOWNLOADED_CSV_PATH"
+          if [ -f "$DOWNLOADED_CSV_PATH" ]; then
+            echo "✅ Downloaded '$DOWNLOADED_CSV_PATH' found."
+          else
+            echo "❌ ERROR: Downloaded '$DOWNLOADED_CSV_PATH' NOT found!"
+            exit 1
+          fi
+
+      - name: Process the downloaded CSV (e.g., print info) 🐍📊
+        run: |
+          echo "🐍 Processing the downloaded CSV using Python and pandas:"
+          DOWNLOADED_CSV_PATH="$GITHUB_WORKSPACE/downloaded_data_dir/processed_output.csv"
+          python -c "
+import pandas as pd
+import os
+csv_path = '$DOWNLOADED_CSV_PATH' # Using the env var passed from shell
+print(f'Attempting to read: {csv_path}')
+try:
+    df = pd.read_csv(csv_path)
+    print('--- CSV Head ---')
+    print(df.head())
+    print('--- CSV Info ---')
+    df.info()
+    print(f'Number of rows: {len(df)}')
+    print(f'Number of columns: {len(df.columns)}')
+    print('✅ CSV processed successfully.')
+except FileNotFoundError:
+    print(f'❌ ERROR: Python script could not find {csv_path}')
+    exit(1)
+except Exception as e:
+    print(f'❌ ERROR: Python script failed to process {csv_path}: {e}')
+    exit(1)
+"

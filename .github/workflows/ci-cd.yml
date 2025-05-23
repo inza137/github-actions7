@@ -2,11 +2,12 @@
 name: Python CI/CD - Data Script (src/main.py) with Logging
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    types:
-      - opened
+  # push:
+  #   branches: [ "main" ]
+  # pull_request:
+  #   types:
+  #     - opened
+  workflow_dispatch:
 
 jobs:
   lint-test-analyze:
