@@ -55,7 +55,7 @@ jobs:
     - name: Run tests with Pytest
       run: pytest # Pytest will use pyproject.toml for its configuration
 
-  # deploy-and-run-on-ec2:
+  # deploy-and -run-on-ec2:
   #   name: Deploy and Run Script on EC2
   #   needs: lint-test-analyze
   #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'

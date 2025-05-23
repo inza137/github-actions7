@@ -1,1 +1,2 @@
 workflow trigger, filters: https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onpushbranchestagsbranches-ignoretags-ignore
+action to upload files: https://github.com/actions/upload-artifact
