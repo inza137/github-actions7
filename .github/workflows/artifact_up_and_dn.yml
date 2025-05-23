@@ -132,23 +132,23 @@ jobs:
           echo "🐍 Processing the downloaded CSV using Python and pandas:"
           DOWNLOADED_CSV_PATH="$GITHUB_WORKSPACE/downloaded_data_dir/processed_output.csv"
           python -c "
-import pandas as pd
-import os
-csv_path = '$DOWNLOADED_CSV_PATH' # Using the env var passed from shell
-print(f'Attempting to read: {csv_path}')
-try:
-    df = pd.read_csv(csv_path)
-    print('--- CSV Head ---')
-    print(df.head())
-    print('--- CSV Info ---')
-    df.info()
-    print(f'Number of rows: {len(df)}')
-    print(f'Number of columns: {len(df.columns)}')
-    print('✅ CSV processed successfully.')
-except FileNotFoundError:
-    print(f'❌ ERROR: Python script could not find {csv_path}')
-    exit(1)
-except Exception as e:
-    print(f'❌ ERROR: Python script failed to process {csv_path}: {e}')
-    exit(1)
-"
+          import pandas as pd
+          import os
+          csv_path = '$DOWNLOADED_CSV_PATH' # Using the env var passed from shell
+          print(f'Attempting to read: {csv_path}')
+          try:
+          df = pd.read_csv(csv_path)
+          print('--- CSV Head ---')
+          print(df.head())
+          print('--- CSV Info ---')
+          df.info()
+          print(f'Number of rows: {len(df)}')
+          print(f'Number of columns: {len(df.columns)}')
+          print('✅ CSV processed successfully.')
+          except FileNotFoundError:
+              print(f'❌ ERROR: Python script could not find {csv_path}')
+              exit(1)
+          except Exception as e:
+              print(f'❌ ERROR: Python script failed to process {csv_path}: {e}')
+              exit(1)
+              "
