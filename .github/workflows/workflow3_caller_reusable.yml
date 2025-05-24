@@ -1,7 +1,4 @@
-# Name of the calling workflow.
 name: Workflow 3 - Caller of Reusable Workflow
-
-# Defines triggers for this workflow.
 on:
   workflow_dispatch: # Allows manual triggering.
     inputs: # Inputs specific to this caller workflow.
