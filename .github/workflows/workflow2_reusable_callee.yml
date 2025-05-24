@@ -1,0 +1,139 @@
+# Name of the reusable workflow.
+name: Reusable Workflow - Callee Example
+
+# 'on: workflow_call:' specifies that this workflow is reusable and can be called by other workflows.
+on:
+  workflow_call:
+    # 'inputs:' defines the parameters that a calling workflow can (or must) pass to this reusable workflow.
+    inputs:
+      target_environment: # Name of the input.
+        description: 'The environment to target (e.g., dev, staging, prod)' # Explains the input.
+        required: true               # If true, the caller must provide this input.
+        type: string                 # Data type of the input.
+      package_name:
+        description: 'Name of the package to process'
+        required: false              # This input is optional.
+        type: string
+        default: 'default-package'   # Default value if the caller doesn't provide it.
+      version:
+        description: 'Version to deploy'
+        required: true
+        type: string
+      deploy_flag:
+        description: 'Set to true to perform deployment actions'
+        required: false
+        type: boolean
+        default: false
+      source_artifact_name:
+        description: 'Name of the artifact created by the caller job (optional)'
+        required: false
+        type: string
+
+    # 'secrets:' defines secrets that this reusable workflow expects the caller to provide.
+    # These secrets must be explicitly passed by the calling workflow.
+    secrets:
+      API_TOKEN: # Name of the secret expected by this reusable workflow.
+        description: 'API Token for deployment or other operations'
+        required: true # The caller must pass a secret named API_TOKEN.
+      OPTIONAL_CONFIG_SECRET:
+        description: 'An optional configuration secret'
+        required: false # This secret is optional for the caller.
+
+    # 'outputs:' defines the outputs that this reusable workflow will produce for the calling workflow.
+    outputs:
+      deployment_report_id: # Name of the output.
+        description: "ID of the generated deployment report"
+        # 'value' specifies how this output is generated, often from a job's output within this reusable workflow.
+        value: ${{ jobs.process_and_deploy.outputs.report_id_output }}
+      processed_data_summary:
+        description: "Summary of the data processing"
+        value: ${{ jobs.process_and_deploy.outputs.summary_output }}
+
+# Defines the jobs within this reusable workflow.
+jobs:
+  process_and_deploy:
+    name: "Process Data and Deploy (Reusable)"
+    runs-on: ubuntu-latest
+    # Job-level outputs that will feed the workflow-level 'outputs' defined above.
+    outputs:
+      report_id_output: ${{ steps.deploy_step.outputs.report_id }}
+      summary_output: ${{ steps.process_artifact_step.outputs.processing_summary || steps.data_handling_step.outputs.summary }}
+
+    # Steps executed by this job.
+    steps:
+      - name: Display Received Inputs
+        run: |
+          echo "🚀 Starting reusable workflow..."
+          # Accessing input values using the 'inputs' context.
+          echo "Target Environment: ${{ inputs.target_environment }}"
+          echo "Package Name: ${{ inputs.package_name }}"
+          echo "Version: ${{ inputs.version }}"
+          echo "Deploy Flag: ${{ inputs.deploy_flag }}"
+          # Using '||' as a shell default if the input might be empty (though 'default' in input definition is better).
+          echo "Source Artifact Name: ${{ inputs.source_artifact_name || 'Not provided' }}"
+
+      - name: Check for API Token Secret
+        run: |
+          # Accessing secrets using the 'secrets' context. Their values are masked in logs.
+          if [ -n "${{ secrets.API_TOKEN }}" ]; then # Check if the secret is non-empty.
+            echo "✅ API_TOKEN secret received (value is masked)."
+          else
+            echo "❌ API_TOKEN secret NOT received. This is required."
+            exit 1 # Fail the step if a required secret is missing.
+          fi
+          if [ -n "${{ secrets.OPTIONAL_CONFIG_SECRET }}" ]; then
+            echo "ℹ️ Optional OPTIONAL_CONFIG_SECRET received (value is masked)."
+          else
+            echo "ℹ️ Optional OPTIONAL_CONFIG_SECRET was not provided."
+          fi
+      
+      - name: Download and Process Artifact (if name provided)
+        id: process_artifact_step # ID for this step.
+        # This step runs only if 'source_artifact_name' input was provided and is not empty.
+        if: ${{ inputs.source_artifact_name != '' && inputs.source_artifact_name != null }} 
+        run: |
+          echo "Attempting to download artifact: ${{ inputs.source_artifact_name }}"
+          # This section simulates downloading and processing an artifact.
+          # In a real workflow, you would use 'actions/download-artifact@v4'.
+          # Example:
+          # - name: Download Build Artifact
+          #   uses: actions/download-artifact@v4
+          #   with:
+          #     name: ${{ inputs.source_artifact_name }}
+          #     path: ./downloaded_artifact # Directory to download the artifact to.
+          
+          # Simulation for this demo:
+          mkdir -p ./downloaded_artifact # Create a directory.
+          echo "Simulated content for ${{ inputs.source_artifact_name }}" > ./downloaded_artifact/content.txt # Create a dummy file.
+          echo "✅ Artifact '${{ inputs.source_artifact_name }}' simulated download and processed."
+          ls -R ./downloaded_artifact # List the contents of the simulated artifact directory.
+          # Set an output for this step.
+          echo "processing_summary=Processed artifact ${{ inputs.source_artifact_name }}" >> $GITHUB_OUTPUT
+          
+      - name: Handle Data (if no artifact)
+        id: data_handling_step # ID for this step.
+        # This step runs if 'source_artifact_name' was NOT provided or is empty.
+        if: ${{ inputs.source_artifact_name == '' || inputs.source_artifact_name == null }}
+        run: |
+          echo "No source artifact name provided. Performing default data handling for package '${{ inputs.package_name }}'."
+          # Set an output for this step.
+          echo "summary=Default data handling for ${{ inputs.package_name }} complete." >> $GITHUB_OUTPUT
+
+      - name: Simulate Deployment Steps
+        id: deploy_step # ID for this step to access its outputs.
+        # This step runs only if the 'deploy_flag' input is true.
+        if: ${{ inputs.deploy_flag == true }}
+        run: |
+          echo "Simulating deployment of ${{ inputs.package_name }} v${{ inputs.version }} to ${{ inputs.target_environment }} using API_TOKEN."
+          # Here, you would use the secret for actual deployment commands, e.g.:
+          # my_deploy_tool --server api.example.com --token "${{ secrets.API_TOKEN }}"
+          REPORT_ID="report_$(date +%s)" # Generate a dynamic report ID.
+          echo "Deployment simulation successful. Report ID: $REPORT_ID"
+          # Set an output 'report_id' for this step.
+          echo "report_id=$REPORT_ID" >> $GITHUB_OUTPUT
+      
+      - name: Skip Deployment
+        # This step runs if the 'deploy_flag' input is false.
+        if: ${{ inputs.deploy_flag == false }}
+        run: |
+          echo "Deployment skipped as per deploy_flag."

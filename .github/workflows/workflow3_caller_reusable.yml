@@ -1,0 +1,113 @@
+# Name of the calling workflow.
+name: Workflow 3 - Caller of Reusable Workflow
+
+# Defines triggers for this workflow.
+on:
+  workflow_dispatch: # Allows manual triggering.
+    inputs: # Inputs specific to this caller workflow.
+      target_env:
+        description: 'Choose target environment for reusable workflow'
+        type: choice # Input type that presents options.
+        options: ['dev', 'staging', 'production'] # Available choices.
+        default: 'dev'
+      app_version:
+        description: 'Application version to deploy'
+        required: true
+        default: '1.0.0'
+      should_deploy:
+        description: 'Trigger deployment in reusable workflow?'
+        type: boolean
+        default: false
+
+# Defines the jobs in this calling workflow.
+jobs:
+  # First job: Simulates building a package and uploading it as an artifact.
+  build_and_upload_artifact:
+    name: "Build App and Upload Artifact"
+    runs-on: ubuntu-latest
+    outputs: # Defines outputs for this job.
+      # This output will be the name of the artifact, to be passed to the reusable workflow.
+      build_artifact_name: ${{ steps.create_package.outputs.artifact_name_output }} 
+
+    steps:
+      - name: Checkout code (optional, only if build scripts are in repo)
+        uses: actions/checkout@v4 # Checks out the repository code.
+
+      - name: Create a dummy package file
+        id: create_package # ID for this step to reference its outputs.
+        run: |
+          # Use workflow input for version, or a default.
+          PACKAGE_VERSION="${{ github.event.inputs.app_version || '1.0.0-default' }}"
+          # Define a directory name for the artifact content.
+          ARTIFACT_DIR="my_app_package_v${PACKAGE_VERSION}"
+          mkdir -p $ARTIFACT_DIR # Create the directory.
+          # Create a dummy file inside the directory.
+          echo "Build content for version ${PACKAGE_VERSION}" > $ARTIFACT_DIR/app.dat
+          echo "Created package in $ARTIFACT_DIR"
+          # Set step output for the directory path (used by upload-artifact).
+          echo "package_dir=$ARTIFACT_DIR" >> $GITHUB_OUTPUT
+          # Set step output for the artifact name (used by job output and then by reusable workflow).
+          echo "artifact_name_output=app-build-${PACKAGE_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Upload build artifact
+        # This step does not strictly need an 'id' here if we are not referencing its direct 'outputs.xyz'
+        # as the artifact name is already an output of the 'create_package' step.
+        # id: upload_step 
+        uses: actions/upload-artifact@v4 # Uses the official action to upload artifacts.
+        with: # Parameters for the upload-artifact action.
+          # 'name' is the name under which the artifact will be stored.
+          name: ${{ steps.create_package.outputs.artifact_name_output }} 
+          # 'path' is the file or directory to upload from the runner.
+          path: ${{ steps.create_package.outputs.package_dir }}/* # Upload all content from the package_dir.
+
+  # Second job: Calls the reusable workflow.
+  call_my_reusable_workflow:
+    name: "Call Reusable Workflow"
+    runs-on: ubuntu-latest
+    needs: build_and_upload_artifact # Depends on the previous job to ensure artifact is created first.
+
+    # 'uses:' specifies the reusable workflow to call.
+    # Format: './.github/workflows/reusable_file.yml@ref' for local reusable workflows.
+    # '@main' refers to the main branch. You can use other branches, tags, or commit SHAs.
+    uses: ./.github/workflows/workflow2_reusable_callee.yml@main 
+    
+    # 'with:' block passes values for the 'inputs' defined in the reusable workflow.
+    with:
+      target_environment: ${{ github.event.inputs.target_env }} # Pass workflow dispatch input.
+      package_name: "MyApplication" # Pass a static string.
+      version: ${{ github.event.inputs.app_version }} # Pass another workflow dispatch input.
+      deploy_flag: ${{ github.event.inputs.should_deploy }} # Pass a boolean input.
+      # Pass the name of the artifact created in the 'build_and_upload_artifact' job.
+      # This uses the 'outputs' from the 'needs' context.
+      source_artifact_name: ${{ needs.build_and_upload_artifact.outputs.build_artifact_name }}
+
+    # 'secrets:' block passes secrets to the reusable workflow.
+    # The keys here (API_TOKEN, OPTIONAL_CONFIG_SECRET) must match the 'secrets' block in the reusable workflow's 'on.workflow_call'.
+    # The values come from the calling workflow's available secrets (repository, organization, or environment secrets).
+    secrets:
+      API_TOKEN: ${{ secrets.CALLER_API_TOKEN_FOR_REUSABLE }} # Pass the caller's secret.
+      OPTIONAL_CONFIG_SECRET: ${{ secrets.CALLER_OPTIONAL_SECRET }} # Pass an optional secret.
+      # If you had 'inherit: true', all caller's secrets would be passed, but explicit passing is often preferred.
+
+  # Third job: Processes the outputs received from the reusable workflow.
+  process_reusable_workflow_outputs:
+    name: "Process Outputs from Reusable Workflow"
+    runs-on: ubuntu-latest
+    # Depends on the job that called the reusable workflow.
+    needs: call_my_reusable_workflow 
+
+    steps:
+      - name: Display outputs received from reusable workflow
+        run: |
+          echo "Outputs from the reusable workflow (via 'call_my_reusable_workflow' job):"
+          # Accessing outputs from the 'call_my_reusable_workflow' job.
+          # These outputs are the ones defined in the 'outputs' section of the reusable workflow itself.
+          echo "Deployment Report ID: ${{ needs.call_my_reusable_workflow.outputs.deployment_report_id }}"
+          echo "Processed Data Summary: ${{ needs.call_my_reusable_workflow.outputs.processed_data_summary }}"
+
+          # Example of using an output conditionally.
+          if [[ "${{ needs.call_my_reusable_workflow.outputs.deployment_report_id }}" != "" ]]; then
+            echo "✅ Deployment report ID received, further actions can be taken based on this ID."
+          else
+            echo "ℹ️ No deployment report ID received (deployment might have been skipped or failed in reusable workflow)."
+          fi

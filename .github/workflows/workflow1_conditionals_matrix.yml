@@ -1,0 +1,180 @@
+# Defines the name of the workflow, which appears in the GitHub Actions UI.
+name: Workflow 1 - Conditionals and Matrix
+
+# Specifies the events that trigger this workflow.
+on:
+  # Allows this workflow to be triggered manually from the Actions tab in GitHub.
+  workflow_dispatch:
+    # Defines inputs that can be provided when manually triggering the workflow.
+    inputs:
+      run_special_job:
+        description: 'Run the special conditional job? (true/false)' # Description of the input.
+        required: true               # Specifies if the input is mandatory.
+        type: boolean                # Data type of the input (boolean, string, choice, environment).
+        default: false               # Default value if none is provided.
+      branch_name_for_step:
+        description: 'Simulated branch name for conditional step'
+        required: false
+        type: string
+        default: 'main'
+
+# Defines environment variables available to all jobs and steps in this workflow.
+env:
+  WORKFLOW_VAR: "Set at workflow level"
+
+# Defines the jobs that make up this workflow. Jobs run in parallel by default unless dependencies are specified.
+jobs:
+  # First job in the workflow.
+  conditional_steps_job:
+    name: "Job with Conditional Steps" # Display name for the job in the UI.
+    runs-on: ubuntu-latest            # Specifies the type of runner (virtual machine) for this job.
+    # Defines outputs that this job will produce, which can be used by other dependent jobs.
+    outputs:
+      step_outcome: ${{ steps.conditional_step_2.outputs.status }} # Maps the 'status' output of 'conditional_step_2' to a job output 'step_outcome'.
+
+    # A sequence of steps to be executed in this job.
+    steps:
+      - name: Always Runs # Name of the step, displayed in the UI.
+        run: echo "This step always runs." # Command(s) to execute for this step.
+
+      - name: Run only on 'main' branch (simulated)
+        # 'if' condition: This step runs only if the condition is true.
+        # We use a workflow_dispatch input here to simulate different branch names for demonstration.
+        # In a real push/PR trigger, you might use: if: github.ref == 'refs/heads/main'
+        if: ${{ github.event.inputs.branch_name_for_step == 'main' }}
+        run: echo "This step runs because simulated branch is 'main'."
+
+      - name: Run if simulated branch starts with 'feat/'
+        # Uses the 'startsWith' function to check the input string.
+        if: startsWith(github.event.inputs.branch_name_for_step, 'feat/')
+        run: echo "This step runs because simulated branch starts with 'feat/'."
+
+      - name: Step that might succeed or fail (based on input for demo)
+        id: first_step # An 'id' for this step, so its outcome/outputs can be referenced by other steps/job outputs.
+        run: | # Multi-line script.
+          # This script's success/failure is controlled by a workflow input for demo purposes.
+          if [[ "${{ github.event.inputs.branch_name_for_step }}" == "force-fail" ]]; then
+            echo "Simulating failure for conditional steps..."
+            exit 1 # Exiting with a non-zero code makes the step fail.
+          else
+            echo "Simulating success for conditional steps."
+            exit 0 # Exiting with zero code indicates success.
+          fi
+
+      - name: Run only if 'first_step' succeeded
+        id: conditional_step_2 # ID for this step.
+        # 'success()' function returns true if all previous steps in the job succeeded.
+        # 'steps.first_step.outcome' checks the specific outcome of the step with id 'first_step'.
+        if: ${{ success() && steps.first_step.outcome == 'success' }} 
+        run: |
+          echo "This step runs because 'first_step' succeeded."
+          # Sets an output 'status' for this step, which is then mapped to a job output.
+          echo "status=succeeded_based_on_first_step" >> $GITHUB_OUTPUT
+          
+      - name: Run only if 'first_step' failed
+        # 'failure()' function returns true if any previous step in the job failed.
+        # 'steps.first_step.outcome' can also be 'failure'.
+        if: ${{ failure() || steps.first_step.outcome == 'failure' }} 
+        run: echo "This step runs because 'first_step' failed."
+
+      - name: Always runs, regardless of 'first_step' outcome
+        # 'always()' function returns true, ensuring this step runs even if previous steps failed.
+        if: ${{ always() }}
+        run: echo "This step runs regardless of previous step failures using always()."
+
+  # Second job, demonstrating a conditional job execution.
+  conditional_job_example:
+    name: "Conditional Job"
+    runs-on: ubuntu-latest
+    # 'if' condition at the job level: This entire job runs only if the condition is true.
+    # Here, it checks the boolean input provided during manual workflow dispatch.
+    if: ${{ github.event.inputs.run_special_job == true }}
+    # 'needs' specifies that this job depends on 'conditional_steps_job'.
+    # It will only start after 'conditional_steps_job' completes successfully (unless overridden by 'if' conditions on the 'needs' job).
+    needs: conditional_steps_job 
+    steps:
+      - name: Conditional Job Step
+        run: |
+          echo "This conditional job is running because 'run_special_job' was true."
+          # Accessing an output from a job listed in 'needs'.
+          echo "Output from previous job (conditional_steps_job): ${{ needs.conditional_steps_job.outputs.step_outcome }}"
+
+  # Third job, demonstrating matrix strategies.
+  matrix_job_example:
+    # Job name includes dynamic matrix values for better UI identification.
+    name: "Matrix Strategy Job (${{ matrix.os }} / Python ${{ matrix.python-version }})"
+    # The runner OS is dynamically set from the matrix.
+    runs-on: ${{ matrix.os }}
+    needs: conditional_steps_job # Specifies a dependency for ordering.
+    # 'continue-on-error' at job level: If true, a failure in one matrix job wouldn't fail the whole workflow immediately.
+    # continue-on-error: true 
+    
+    # Defines the matrix strategy for this job.
+    strategy:
+      # 'fail-fast: false': If true (default), GitHub cancels all in-progress matrix jobs if any one matrix job fails.
+      # If false, all matrix jobs will run to completion regardless of others failing.
+      fail-fast: false 
+      # 'matrix' defines the different configurations to run this job with.
+      matrix:
+        os: [ubuntu-latest, windows-latest] # List of operating systems to run on.
+        python-version: ['3.8', '3.9', '3.10'] # List of Python versions to test with.
+        experimental-feature: [false] # Another dimension for the matrix, defaulting to false.
+        
+        # 'exclude' allows removing specific combinations from the generated matrix.
+        exclude:
+          - os: windows-latest        # Condition for exclusion.
+            python-version: '3.8'   # Exclude Python 3.8 on Windows.
+            
+        # 'include' allows adding specific combinations to the matrix, possibly with unique parameters.
+        include:
+          - os: ubuntu-latest         # Condition for inclusion.
+            python-version: '3.10'    # Specific Python version.
+            experimental-feature: true # Override 'experimental-feature' for this combination.
+          - os: macos-latest          # Add a completely new OS for a specific Python version.
+            python-version: '3.11'    # This Python version was not in the main list.
+            # experimental-feature will be undefined here unless specified or defaulted elsewhere in logic.
+
+    steps:
+      - name: Display Matrix Context
+        run: |
+          # Accessing current matrix values using the 'matrix' context.
+          echo "Running on OS: ${{ matrix.os }}"
+          echo "Using Python Version: ${{ matrix.python-version }}"
+          # Accessing another matrix variable. If experimental-feature was not defined for a combination (e.g. macos-3.11),
+          # it would be empty. Using '|| default' is a shell construct for default.
+          echo "Experimental Feature Flag: ${{ matrix.experimental-feature || 'not_explicitly_set_for_this_combo' }}" 
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5 # Uses the official GitHub action to set up Python.
+        with: # Passes parameters to the 'actions/setup-python' action.
+          python-version: ${{ matrix.python-version }} # Sets the Python version from the matrix.
+
+      - name: Simulate Test
+        # 'continue-on-error' at step level: If true, this step failing won't fail the current matrix job.
+        # This example makes one specific matrix job instance (py3.9 on ubuntu) continue even if this step fails.
+        continue-on-error: ${{ matrix.python-version == '3.9' && matrix.os == 'ubuntu-latest' }}
+        run: |
+          echo "Running tests with Python ${{ matrix.python-version }} on ${{ matrix.os }}"
+          if [[ "${{ matrix.python-version }}" == "3.9" && "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            echo "Simulating a test failure for Python 3.9 on Ubuntu (but will continue due to continue-on-error)..."
+            # exit 1 # Uncomment this line to actually test the continue-on-error behavior.
+          fi
+          echo "Tests passed (or continued on error)."
+
+  # Fourth job, to run after the matrix job.
+  summarize_matrix:
+      name: "Summarize Matrix (if applicable)"
+      runs-on: ubuntu-latest
+      # This job runs if 'matrix_job_example' is needed AND this job's condition is met (always()).
+      # It effectively waits for all matrix configurations of 'matrix_job_example' to finish.
+      if: ${{ always() && needs.matrix_job_example }} 
+      needs: [matrix_job_example] # Explicitly wait for the entire matrix job set to complete.
+      steps:
+        - name: Report on Matrix
+          run: |
+            echo "Matrix job set ('matrix_job_example') has finished."
+            # 'needs.matrix_job_example.result' gives the overall result of the matrix job set.
+            # It will be 'success' only if all matrix jobs (that weren't marked with continue-on-error at job level) succeeded.
+            # If fail-fast was true, it might be 'failure' even if some jobs didn't run.
+            # If fail-fast was false, it reflects the combined success/failure.
+            echo "Overall matrix job set result: ${{ needs.matrix_job_example.result }}"
