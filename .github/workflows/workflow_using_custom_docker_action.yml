@@ -1,0 +1,61 @@
+# .github/workflows/workflow_using_custom_docker_action.yml
+
+# Name for this workflow.
+name: 'Using Custom CSV Validator Docker Action'
+
+# Triggers for the workflow.
+on:
+  workflow_dispatch: # Allows manual triggering.
+  push: # Also triggers on push to specific paths.
+    paths:
+      - '.github/actions/my-csv-validator/**' # If the custom action code changes.
+      - '.github/workflows/workflow_using_custom_docker_action.yml' # If this workflow file changes.
+      - '.github/data/sample_to_validate.csv' # If the sample data changes.
+
+# Defines the jobs in the workflow.
+jobs:
+  validate_sample_csv: # Name of the job.
+    name: 'Validate Sample CSV with Custom Docker Action'
+    runs-on: ubuntu-latest # The runner that will execute the job (and build/run the Docker action).
+
+    steps:
+      # Step 1: Checkout the repository code.
+      # This is crucial because it makes your custom action directory ('.github/actions/my-csv-validator')
+      # and your data file ('.github/data/sample_to_validate.csv') available to the runner.
+      - name: 'Checkout repository'
+        uses: actions/checkout@v4
+
+      # Step 2: Run your custom CSV validator action.
+      - name: 'Run Custom CSV Validator Action'
+        id: csv_validation_step # Give an ID to this step to access its outputs later.
+        # 'uses:' points to the directory containing the action.yml for your custom action.
+        # For local actions (in the same repository), this is a path relative to the repository root.
+        uses: ./.github/actions/my-csv-validator 
+        with: # Pass input values to your custom action.
+          # These input names must match those defined in your action.yml.
+          csv_file_path: '.github/data/sample_to_validate.csv' # Path to the CSV file.
+          expected_columns: '6' # Expected number of columns (passed as a string).
+
+      # Step 3: Display the validation results received from the custom action.
+      - name: 'Display Validation Results'
+        # 'if: always()' ensures this step runs even if the previous 'csv_validation_step' fails
+        # (e.g., if your entrypoint.py script exits with a non-zero code on validation failure).
+        if: always() 
+        run: |
+          echo "--- Validation Results from Custom Action ---"
+          # Access outputs from the 'csv_validation_step' using its ID.
+          echo "Validation Status: ${{ steps.csv_validation_step.outputs.validation_status }}"
+          echo "Rows Count: ${{ steps.csv_validation_step.outputs.rows_count }}"
+          echo "Columns Found: ${{ steps.csv_validation_step.outputs.columns_found }}"
+
+          # Optionally, add logic based on the validation status.
+          if [[ "${{ steps.csv_validation_step.outputs.validation_status }}" == "success" ]]; then
+            echo "✅ CSV validation was successful!"
+          else
+            echo "❌ CSV validation reported an issue: ${{ steps.csv_validation_step.outputs.validation_status }}"
+            # You could choose to fail the entire job here if validation status is not 'success'.
+            # For example:
+            # if [[ "${{ steps.csv_validation_step.outputs.validation_status }}" != "success" ]]; then
+            #   exit 1
+            # fi
+          fi

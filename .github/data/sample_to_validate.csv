@@ -1,0 +1,5 @@
+transaction_id,timestamp,user_id,product_id,quantity,price_per_unit
+TX001,2025-05-24T10:00:00Z,user123,prod789,2,10.50
+TX002,2025-05-24T10:05:00Z,user456,prod101,1,25.00
+TX003,2025-05-24T10:15:00Z,user123,prod202,5,5.75
+TX004,2025-05-24T10:20:00Z,user789,prod789,1,10.50

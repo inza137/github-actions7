@@ -1,0 +1,41 @@
+# .github/actions/my-csv-validator/action.yml
+
+# Human-readable name for your action, displayed in the GitHub Actions UI.
+name: 'CSV File Validator'
+# A short description of what your action does.
+description: 'Validates a CSV file for properties like column count and reports row count.'
+# Your name or organization.
+author: 'Your Name/Org'
+
+# Defines the inputs your action accepts.
+inputs:
+  csv_file_path: # Name of the input.
+    description: 'Path to the CSV file to validate (relative to repository root).'
+    required: true # Specifies if this input is mandatory.
+  expected_columns:
+    description: 'The expected number of columns in the CSV file.'
+    required: true
+    # type: number # Note: GitHub Actions passes all inputs as strings to Docker actions.
+                 # The script inside the container will need to handle type conversion.
+
+# Defines the outputs your action can produce.
+outputs:
+  validation_status: # Name of the output.
+    description: 'Status of the validation (e.g., "success", "failure_column_mismatch", "failure_file_not_found").'
+  rows_count:
+    description: 'Number of data rows found in the CSV (excluding the header).'
+  columns_found:
+    description: 'Actual number of columns found in the CSV header.'
+
+# Specifies how the action runs.
+runs:
+  using: 'docker'      # Indicates this is a Docker container action.
+  image: 'Dockerfile'  # Tells GitHub Actions to build an image from the Dockerfile
+                       # located in the same directory as this action.yml file.
+  # 'args': []         # Optional: Arguments to pass to the Docker container's ENTRYPOINT or CMD.
+                       # Inputs are typically accessed via environment variables instead.
+
+# Optional: Branding for your action in the GitHub Marketplace (if published).
+branding:
+  icon: 'check-circle' # Icon from Feather icons set.
+  color: 'green'       # Color theme for the icon.
