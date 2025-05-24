@@ -6,11 +6,11 @@ name: 'Using Custom CSV Validator Docker Action'
 # Triggers for the workflow.
 on:
   workflow_dispatch: # Allows manual triggering.
-  push: # Also triggers on push to specific paths.
-    paths:
-      - '.github/actions/my-csv-validator/**' # If the custom action code changes.
-      - '.github/workflows/workflow_using_custom_docker_action.yml' # If this workflow file changes.
-      - '.github/data/sample_to_validate.csv' # If the sample data changes.
+  # push: # Also triggers on push to specific paths.
+  #   paths:
+  #     - '.github/actions/my-csv-validator/**' # If the custom action code changes.
+  #     - '.github/workflows/workflow_using_custom_docker_action.yml' # If this workflow file changes.
+  #     - '.github/data/sample_to_validate.csv' # If the sample data changes.
 
 # Defines the jobs in the workflow.
 jobs:
