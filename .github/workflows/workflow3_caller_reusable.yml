@@ -61,33 +61,31 @@ jobs:
           path: ${{ steps.create_package.outputs.package_dir }}/* # Upload all content from the package_dir.
 
   # Second job: Calls the reusable workflow.
-  call_my_reusable_workflow:
+call_my_reusable_workflow:
     name: "Call Reusable Workflow"
     runs-on: ubuntu-latest
-    needs: build_and_upload_artifact # Depends on the previous job to ensure artifact is created first.
+    needs: build_and_upload_artifact # Ensure artifact is created first
 
-    # 'uses:' specifies the reusable workflow to call.
-    # Format: './.github/workflows/reusable_file.yml@ref' for local reusable workflows.
-    # '@main' refers to the main branch. You can use other branches, tags, or commit SHAs.
-    uses: ./.github/workflows/workflow2_reusable_callee.yml@main 
+    # 'uses' points to the reusable workflow file in the same repository.
+    # For local workflows, you DO NOT specify a version/ref like @main.
+    # It uses the version of the reusable workflow from the same commit SHA as the caller.
+    uses: ./.github/workflows/workflow2_reusable_callee.yml # Corrected line - removed @main
     
-    # 'with:' block passes values for the 'inputs' defined in the reusable workflow.
+    # Pass inputs to the reusable workflow
     with:
-      target_environment: ${{ github.event.inputs.target_env }} # Pass workflow dispatch input.
-      package_name: "MyApplication" # Pass a static string.
-      version: ${{ github.event.inputs.app_version }} # Pass another workflow dispatch input.
-      deploy_flag: ${{ github.event.inputs.should_deploy }} # Pass a boolean input.
-      # Pass the name of the artifact created in the 'build_and_upload_artifact' job.
-      # This uses the 'outputs' from the 'needs' context.
+      target_environment: ${{ github.event.inputs.target_env }}
+      package_name: "MyApplication"
+      version: ${{ github.event.inputs.app_version }}
+      deploy_flag: ${{ github.event.inputs.should_deploy }}
+      # Pass the name of the artifact created in the previous job
       source_artifact_name: ${{ needs.build_and_upload_artifact.outputs.build_artifact_name }}
 
-    # 'secrets:' block passes secrets to the reusable workflow.
-    # The keys here (API_TOKEN, OPTIONAL_CONFIG_SECRET) must match the 'secrets' block in the reusable workflow's 'on.workflow_call'.
-    # The values come from the calling workflow's available secrets (repository, organization, or environment secrets).
+    # Pass secrets to the reusable workflow
+    # The names here (API_TOKEN, OPTIONAL_CONFIG_SECRET) must match the 'secrets' block in the reusable workflow.
+    # The values come from the caller's own secrets context.
     secrets:
       API_TOKEN: ${{ secrets.CALLER_API_TOKEN_FOR_REUSABLE }} # Pass the caller's secret.
       OPTIONAL_CONFIG_SECRET: ${{ secrets.CALLER_OPTIONAL_SECRET }} # Pass an optional secret.
-      # If you had 'inherit: true', all caller's secrets would be passed, but explicit passing is often preferred.
 
   # Third job: Processes the outputs received from the reusable workflow.
   process_reusable_workflow_outputs:
